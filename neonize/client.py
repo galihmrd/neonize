@@ -1083,7 +1083,7 @@ class NewClient:
         img_hash = (
             base64.b64encode(thumbnail.FileSHA256).decode("utf-8").replace("/", "-")
         )
-        upload = await self.upload(sticker_pack, MediaType.MediaStickerPack)
+        upload = self.upload(sticker_pack, MediaType.MediaStickerPack)
 
         message = Message(
             stickerPackMessage=StickerPackMessage(
