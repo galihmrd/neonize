@@ -11,6 +11,7 @@ except Exception:
     ColoredFormatter = None
 
 log = logging.getLogger(__name__)
+_log_ = log
 
 if ColoredFormatter:
     formatter = ColoredFormatter(
@@ -39,8 +40,8 @@ clientlogger = logging.getLogger("whatsmeow.Client")
 dblogger = logging.getLogger("Whatsmeow.Database")
 
 
-
 _log_queue = queue.Queue()
+
 
 def _worker():
     while True:
@@ -59,15 +60,18 @@ def _worker():
             level_fn = getattr(log, log_msg.Level.lower(), log.info)
             level_fn(log_msg.Message)
         except Exception:
-            log.exception("Failed to handle WhatsMeow log")
+            _log_.exception("Failed to handle WhatsMeow log")
         finally:
             _log_queue.task_done()
+
 
 _thread = threading.Thread(target=_worker, daemon=True)
 _thread.start()
 
+
 def log_whatsmeow(binary: int, size: int):
     _log_queue.put((binary, size))
+
 
 def shutdown_log_worker():
     _log_queue.put((None, 0))
