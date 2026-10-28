@@ -102,6 +102,27 @@ message = ButtonMessage(
 client.send_interactive_message(chat, message)
 ```
 
+WhatsApp iOS currently does not render native-flow `single_select` lists.
+For a selection with up to three rows, use the `ios_compatible=True` option
+to send each row as a `quick_reply` button instead. These choices appear
+directly under the message instead of inside a dropdown:
+
+```python
+message = (
+    ButtonMessage()
+    .set_body("Pick an option")
+    .add_selection("Options", ios_compatible=True)
+    .add_section("General")
+    .add_row("Language", "Change language", "language")
+    .add_row("Theme", "Light or dark", "theme")
+)
+client.send_interactive_message(chat, message)
+```
+
+The option is opt-in because it changes the presentation on every client.
+It raises `ValueError` when the selection has more than three rows; use
+`single_select` for larger menus, which may not render on iOS.
+
 ### Carousel
 
 `CarouselMessage` lays out cards with images — see the module reference via

@@ -288,8 +288,9 @@ class SelectionButton:
     :param title: The title of the selection list.
     """
 
-    def __init__(self, title: str) -> None:
+    def __init__(self, title: str, ios_compatible: bool = False) -> None:
         self.title = title
+        self.ios_compatible = ios_compatible
         self.sections: list[Section] = []
         self._current_section_index: int = -1
 
@@ -321,8 +322,31 @@ class SelectionButton:
         self.sections[self._current_section_index].add_row(title, description, id, header)
         return self
 
-    def to_native_flow(self) -> InteractiveMessage.NativeFlowMessage.NativeFlowButton:
-        """Serialise to a ``NativeFlowButton`` protobuf."""
+    def to_native_flow(
+        self,
+    ) -> InteractiveMessage.NativeFlowMessage.NativeFlowButton | list[
+        InteractiveMessage.NativeFlowMessage.NativeFlowButton
+    ]:
+        """Serialise as a list button or as iOS-compatible quick replies.
+
+        WhatsApp iOS currently does not render ``single_select`` native-flow
+        buttons. When ``ios_compatible`` is enabled, expose each row as a
+        ``quick_reply`` button instead. This keeps all choices available while
+        working across clients; the choices appear directly rather than in a
+        dropdown.
+        """
+        if self.ios_compatible:
+            rows = [row for section in self.sections for row in section.rows]
+            if not 1 <= len(rows) <= 3:
+                raise ValueError(
+                    "iOS-compatible selections require 1 to 3 rows because WhatsApp "
+                    "quick-reply buttons are limited to three."
+                )
+            return [
+                ReplyButton(display_text=row.title, id=row.id or row.title).to_native_flow()
+                for row in rows
+            ]
+
         sections_data = [
             {
                 "title": s.title,
@@ -562,16 +586,20 @@ class ButtonMessage(CustomInteractiveMessage, InteractiveMessageBuilder):
 
     # -- Selection (list) API -----------------------------------------------
 
-    def add_selection(self, title: str) -> Self:
+    def add_selection(self, title: str, *, ios_compatible: bool = False) -> Self:
         """Add a selection list button and make it the active selection.
 
         Subsequent :meth:`add_section` and :meth:`add_row` calls operate on
         the most recently added selection.
 
         :param title: Title of the selection list.
+        :param ios_compatible: Convert rows to individual quick-reply buttons.
+            WhatsApp iOS does not currently render ``single_select`` buttons;
+            quick replies are the compatible alternative. The choices appear
+            directly instead of opening a dropdown.
         :returns: ``self`` for chaining.
         """
-        self._buttons.append(SelectionButton(title=title))
+        self._buttons.append(SelectionButton(title=title, ios_compatible=ios_compatible))
         return self
 
     def add_section(self, title: str = "", highlight_label: str = "") -> Self:
@@ -716,7 +744,14 @@ class ButtonMessage(CustomInteractiveMessage, InteractiveMessageBuilder):
         self,
     ) -> list[InteractiveMessage.NativeFlowMessage.NativeFlowButton]:
         """Convert all internal buttons to ``NativeFlowButton`` protobufs."""
-        return [btn.to_native_flow() for btn in self._buttons]
+        buttons = []
+        for btn in self._buttons:
+            native_buttons = btn.to_native_flow()
+            if isinstance(native_buttons, list):
+                buttons.extend(native_buttons)
+            else:
+                buttons.append(native_buttons)
+        return buttons
 
     def _build_interactive_message(
         self,
